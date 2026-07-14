@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -8,7 +9,7 @@ type UiConfig = {
 	accountLabel?: string;
 };
 
-const CONFIG_PATH = path.join(process.cwd(), ".pi", "claude-code-ui.json");
+const CONFIG_FILE_NAME = "pi-teki-orange-theme.json";
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 const TOOL_MESSAGES: Record<string, string> = {
@@ -18,19 +19,27 @@ const TOOL_MESSAGES: Record<string, string> = {
 	write: "Writing",
 };
 
-function readConfig(): UiConfig {
+function readConfig(cwd: string): UiConfig {
 	try {
-		if (!fs.existsSync(CONFIG_PATH)) {
+		const configPath = path.join(cwd, CONFIG_DIR_NAME, CONFIG_FILE_NAME);
+		if (!fs.existsSync(configPath)) {
 			return {};
 		}
-		return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8")) as UiConfig;
+
+		const parsed: unknown = JSON.parse(fs.readFileSync(configPath, "utf8"));
+		if (!parsed || typeof parsed !== "object") {
+			return {};
+		}
+
+		const accountLabel = (parsed as Record<string, unknown>).accountLabel;
+		return typeof accountLabel === "string" ? { accountLabel } : {};
 	} catch {
 		return {};
 	}
 }
 
-function getAccountLabel(): string {
-	const value = readConfig().accountLabel?.trim();
+function getAccountLabel(ctx: ExtensionContext): string {
+	const value = readConfig(ctx.cwd).accountLabel?.trim();
 	if (value && value !== "set-me") {
 		return value;
 	}
@@ -90,6 +99,8 @@ function getLogoLines(theme: ExtensionContext["ui"]["theme"]): string[] {
 }
 
 function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
+	const accountLabel = getAccountLabel(ctx);
+
 	ctx.ui.setHeader((_tui, theme) => ({
 		invalidate() {},
 		render(width: number): string[] {
@@ -107,7 +118,7 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 			const metaWidth = Math.max(12, innerWidth - logoWidth - gap * 2 - 1);
 			const metaLines = [
 				`${theme.fg("text", theme.bold("Pi"))}  ${theme.fg("dim", "model")} ${theme.fg("muted", getModelLabel(ctx))}`,
-				`${theme.fg("dim", "acct")} ${theme.fg("muted", getAccountLabel())}  ${theme.fg("borderMuted", "·")}  ${theme.fg("dim", "think")} ${theme.fg("muted", pi.getThinkingLevel())}`,
+				`${theme.fg("dim", "acct")} ${theme.fg("muted", accountLabel)}  ${theme.fg("borderMuted", "·")}  ${theme.fg("dim", "think")} ${theme.fg("muted", pi.getThinkingLevel())}`,
 				`${theme.fg("dim", "cwd")} ${theme.fg("muted", path.basename(ctx.cwd))}`,
 				"",
 			];
@@ -157,10 +168,11 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | null = null;
 	let frameIndex = 0;
+	const activeTools = new Map<string, string>();
 
 	const setActivity = (ctx: ExtensionContext, label: string | undefined) => {
 		ctx.ui.setStatus(
-			"claude-code-ui",
+			"pi-teki-orange-theme",
 			label ? ctx.ui.theme.fg("accent", label) : undefined,
 		);
 	};
@@ -209,6 +221,7 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") {
 			return;
 		}
+		activeTools.clear();
 		ctx.ui.setWorkingMessage("Thinking…");
 		setActivity(ctx, "Thinking");
 		startTitleAnimation(ctx);
@@ -219,22 +232,32 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		const message = TOOL_MESSAGES[event.toolName] ?? `Running ${event.toolName}`;
+		activeTools.set(event.toolCallId, message);
 		ctx.ui.setWorkingMessage(`${message}…`);
 		setActivity(ctx, message);
 	});
 
-	pi.on("tool_execution_end", async (_event, ctx) => {
+	pi.on("tool_execution_end", async (event, ctx) => {
 		if (ctx.mode !== "tui") {
 			return;
 		}
-		ctx.ui.setWorkingMessage("Thinking…");
-		setActivity(ctx, "Thinking");
+		activeTools.delete(event.toolCallId);
+		const messages = Array.from(activeTools.values());
+		const message = messages[messages.length - 1];
+		if (message) {
+			ctx.ui.setWorkingMessage(`${message}…`);
+			setActivity(ctx, message);
+		} else {
+			ctx.ui.setWorkingMessage("Thinking…");
+			setActivity(ctx, "Thinking");
+		}
 	});
 
-	pi.on("agent_end", async (_event, ctx) => {
+	pi.on("agent_settled", async (_event, ctx) => {
 		if (ctx.mode !== "tui") {
 			return;
 		}
+		activeTools.clear();
 		ctx.ui.setWorkingMessage("Thinking…");
 		setActivity(ctx, undefined);
 		stopTitleAnimation(ctx);
@@ -242,6 +265,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		activeTools.clear();
 		if (ctx.mode !== "tui") {
 			return;
 		}

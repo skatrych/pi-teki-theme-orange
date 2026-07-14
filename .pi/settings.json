@@ -1,4 +1,5 @@
 {
-  "theme": "claude-code-local",
-  "quietStartup": true
+  "theme": "pi-teki-orange-theme",
+  "quietStartup": true,
+  "packages": ["."]
 }

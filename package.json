@@ -1,0 +1,41 @@
+{
+  "name": "@teki/pi-teki-orange-theme",
+  "version": "0.1.0",
+  "description": "A restrained dark orange theme and compact TUI chrome for Pi",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "keywords": ["pi-package", "pi", "theme", "tui"],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "extensions",
+    "themes",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm test && npm run typecheck",
+    "pack:check": "npm pack --dry-run"
+  },
+  "pi": {
+    "extensions": ["./extensions/pi-teki-orange-theme.ts"],
+    "themes": ["./themes/pi-teki-orange-theme.json"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@earendil-works/pi-tui": "0.80.6",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  }
+}
