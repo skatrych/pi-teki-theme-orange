@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { ExtensionAPI, ExtensionContext, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
@@ -30,7 +31,20 @@ function readConfig(): UiConfig {
 
 function getAccountLabel(): string {
 	const value = readConfig().accountLabel?.trim();
-	return value || "local";
+	if (value && value !== "set-me") {
+		return value;
+	}
+
+	try {
+		const username = os.userInfo().username?.trim();
+		if (username) {
+			return username;
+		}
+	} catch {
+		// ignore
+	}
+
+	return process.env.USER?.trim() || process.env.USERNAME?.trim() || "local";
 }
 
 function getModelLabel(ctx: ExtensionContext): string {
@@ -68,10 +82,10 @@ function getLogoLines(theme: ExtensionContext["ui"]["theme"]): string[] {
 		);
 
 	return [
-		logo([1, 1, 1, 0, 0]),
-		logo([1, 0, 1, 0, 0]),
-		logo([1, 1, 0, 0, 1]),
-		logo([1, 0, 0, 0, 1]),
+		logo([1, 1, 1, 0]),
+		logo([1, 0, 1, 0]),
+		logo([1, 1, 0, 1]),
+		logo([1, 0, 0, 1]),
 	];
 }
 
@@ -88,7 +102,7 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 
 			const innerWidth = width - 2;
 			const logoLines = getLogoLines(theme);
-			const logoWidth = 10;
+			const logoWidth = 8;
 			const gap = 2;
 			const metaWidth = Math.max(12, innerWidth - logoWidth - gap * 2 - 1);
 			const metaLines = [
