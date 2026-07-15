@@ -151,6 +151,7 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 			const model = getModelLabel(ctx);
 			const right = [
 				theme.fg("muted", model),
+				theme.fg("muted", pi.getThinkingLevel()),
 				theme.fg("dim", branch),
 				theme.fg("dim", usageLabel),
 			].join(theme.fg("borderMuted", "  ·  "));

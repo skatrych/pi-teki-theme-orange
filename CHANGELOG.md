@@ -5,3 +5,4 @@
 - Initial public release.
 - Added the `pi-teki-orange-theme` theme.
 - Added compact header, footer, working indicator, and terminal title behavior.
+- Added the current reasoning level to the footer beside the model name.
