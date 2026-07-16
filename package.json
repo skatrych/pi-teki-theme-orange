@@ -1,6 +1,6 @@
 {
   "name": "@teki/pi-teki-orange-theme",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A restrained dark orange theme and compact TUI chrome for Pi",
   "type": "module",
   "engines": {
