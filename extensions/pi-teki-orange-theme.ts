@@ -156,7 +156,7 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 				theme.fg("dim", usageLabel),
 			].join(theme.fg("borderMuted", "  ·  "));
 			const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-			return [truncateToWidth(left + pad + right, width), ""];
+			return [truncateToWidth(left + pad + right, width), " ".repeat(width)];
 		},
 	}));
 
