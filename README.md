@@ -35,6 +35,7 @@ If no label is configured, the local operating-system username is used.
 - Dark neutral palette with restrained orange accents
 - Compact responsive header
 - Model, reasoning level, branch, and context usage footer
+- Current work directory shown on a right-aligned second footer line
 - Context usage shown as a percentage and token count
 - Calm working messages for thinking and tool execution
 - Animated terminal title while Pi is working

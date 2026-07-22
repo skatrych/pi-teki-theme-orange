@@ -156,7 +156,9 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 				theme.fg("dim", usageLabel),
 			].join(theme.fg("borderMuted", "  ·  "));
 			const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-			return [truncateToWidth(left + pad + right, width), " ".repeat(width)];
+			const workdir = truncateToWidth(path.basename(ctx.cwd), width);
+			const workdirLine = " ".repeat(Math.max(0, width - visibleWidth(workdir))) + theme.fg("dim", workdir);
+			return [truncateToWidth(left + pad + right, width), workdirLine, " ".repeat(width)];
 		},
 	}));
 

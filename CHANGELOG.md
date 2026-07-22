@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added the current work directory as a right-aligned second footer line.
+
 ## 0.1.0 - 2026-07-14
 
 - Initial public release.
