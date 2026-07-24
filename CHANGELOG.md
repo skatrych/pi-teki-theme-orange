@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added the current work directory as a right-aligned second footer line.
+- Show the full current work directory path on the left side of the footer instead of a duplicate activity status.
 
 ## 0.1.0 - 2026-07-14
 

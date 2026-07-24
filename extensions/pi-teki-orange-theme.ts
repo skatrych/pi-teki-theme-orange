@@ -139,8 +139,6 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 		dispose: footerData.onBranchChange(() => tui.requestRender()),
 		invalidate() {},
 		render(width: number): string[] {
-			const statuses = Array.from(footerData.getExtensionStatuses().values()).filter(Boolean);
-			const left = statuses.length > 0 ? statuses.join(theme.fg("borderMuted", "  ·  ")) : theme.fg("dim", "Ready");
 			const branch = footerData.getGitBranch() ?? "no git";
 			const usage = ctx.getContextUsage();
 			const formatTokens = (n: number) => (n < 1000 ? `${n}` : `${Math.round(n / 100) / 10}k`);
@@ -155,10 +153,9 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 				theme.fg("dim", branch),
 				theme.fg("dim", usageLabel),
 			].join(theme.fg("borderMuted", "  ·  "));
+			const left = theme.fg("dim", truncateToWidth(ctx.cwd, Math.max(1, width - visibleWidth(right) - 1)));
 			const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-			const workdir = truncateToWidth(path.basename(ctx.cwd), width);
-			const workdirLine = " ".repeat(Math.max(0, width - visibleWidth(workdir))) + theme.fg("dim", workdir);
-			return [truncateToWidth(left + pad + right, width), workdirLine, " ".repeat(width)];
+			return [truncateToWidth(left + pad + right, width), " ".repeat(width)];
 		},
 	}));
 
@@ -172,13 +169,6 @@ export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | null = null;
 	let frameIndex = 0;
 	const activeTools = new Map<string, string>();
-
-	const setActivity = (ctx: ExtensionContext, label: string | undefined) => {
-		ctx.ui.setStatus(
-			"pi-teki-orange-theme",
-			label ? ctx.ui.theme.fg("accent", label) : undefined,
-		);
-	};
 
 	const stopTitleAnimation = (ctx: ExtensionContext) => {
 		if (timer) {
@@ -203,7 +193,6 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		applyChrome(pi, ctx);
-		setActivity(ctx, undefined);
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
@@ -226,7 +215,6 @@ export default function (pi: ExtensionAPI) {
 		}
 		activeTools.clear();
 		ctx.ui.setWorkingMessage("Thinking…");
-		setActivity(ctx, "Thinking");
 		startTitleAnimation(ctx);
 	});
 
@@ -237,7 +225,6 @@ export default function (pi: ExtensionAPI) {
 		const message = TOOL_MESSAGES[event.toolName] ?? `Running ${event.toolName}`;
 		activeTools.set(event.toolCallId, message);
 		ctx.ui.setWorkingMessage(`${message}…`);
-		setActivity(ctx, message);
 	});
 
 	pi.on("tool_execution_end", async (event, ctx) => {
@@ -249,10 +236,8 @@ export default function (pi: ExtensionAPI) {
 		const message = messages[messages.length - 1];
 		if (message) {
 			ctx.ui.setWorkingMessage(`${message}…`);
-			setActivity(ctx, message);
 		} else {
 			ctx.ui.setWorkingMessage("Thinking…");
-			setActivity(ctx, "Thinking");
 		}
 	});
 
@@ -262,7 +247,6 @@ export default function (pi: ExtensionAPI) {
 		}
 		activeTools.clear();
 		ctx.ui.setWorkingMessage("Thinking…");
-		setActivity(ctx, undefined);
 		stopTitleAnimation(ctx);
 		applyChrome(pi, ctx);
 	});
