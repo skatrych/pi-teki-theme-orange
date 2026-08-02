@@ -98,7 +98,7 @@ function getLogoLines(theme: ExtensionContext["ui"]["theme"]): string[] {
 	];
 }
 
-function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
+function applyLayoutChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 	const accountLabel = getAccountLabel(ctx);
 
 	ctx.ui.setHeader((_tui, theme) => ({
@@ -160,6 +160,9 @@ function applyChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 	}));
 
 	ctx.ui.setWorkingIndicator(getWorkingIndicator(ctx));
+}
+
+function applyIdleWorkingState(pi: ExtensionAPI, ctx: ExtensionContext) {
 	ctx.ui.setWorkingMessage("Thinking…");
 	ctx.ui.setWorkingVisible(true);
 	ctx.ui.setTitle(getBaseTitle(pi, ctx));
@@ -169,6 +172,7 @@ export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | null = null;
 	let frameIndex = 0;
 	const activeTools = new Map<string, string>();
+	let agentBusy = false;
 
 	const stopTitleAnimation = (ctx: ExtensionContext) => {
 		if (timer) {
@@ -188,31 +192,41 @@ export default function (pi: ExtensionAPI) {
 		}, 80);
 	};
 
+	const refreshChrome = (ctx: ExtensionContext) => {
+		applyLayoutChrome(pi, ctx);
+		if (!agentBusy) {
+			applyIdleWorkingState(pi, ctx);
+		}
+	};
+
 	pi.on("session_start", async (_event, ctx) => {
 		if (ctx.mode !== "tui") {
 			return;
 		}
-		applyChrome(pi, ctx);
+		agentBusy = false;
+		applyLayoutChrome(pi, ctx);
+		applyIdleWorkingState(pi, ctx);
 	});
 
 	pi.on("model_select", async (_event, ctx) => {
 		if (ctx.mode !== "tui") {
 			return;
 		}
-		applyChrome(pi, ctx);
+		refreshChrome(ctx);
 	});
 
 	pi.on("thinking_level_select", async (_event, ctx) => {
 		if (ctx.mode !== "tui") {
 			return;
 		}
-		applyChrome(pi, ctx);
+		refreshChrome(ctx);
 	});
 
 	pi.on("agent_start", async (_event, ctx) => {
 		if (ctx.mode !== "tui") {
 			return;
 		}
+		agentBusy = true;
 		activeTools.clear();
 		ctx.ui.setWorkingMessage("Thinking…");
 		startTitleAnimation(ctx);
@@ -242,16 +256,18 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_settled", async (_event, ctx) => {
+		agentBusy = false;
+		activeTools.clear();
 		if (ctx.mode !== "tui") {
 			return;
 		}
-		activeTools.clear();
-		ctx.ui.setWorkingMessage("Thinking…");
 		stopTitleAnimation(ctx);
-		applyChrome(pi, ctx);
+		applyLayoutChrome(pi, ctx);
+		applyIdleWorkingState(pi, ctx);
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
+		agentBusy = false;
 		activeTools.clear();
 		if (ctx.mode !== "tui") {
 			return;
