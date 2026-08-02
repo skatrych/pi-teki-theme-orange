@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
-import type { ExtensionAPI, ExtensionContext, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ThemeColor, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 type UiConfig = {
@@ -19,7 +19,7 @@ const TOOL_MESSAGES: Record<string, string> = {
 	write: "Writing",
 };
 
-function readConfig(cwd: string): UiConfig {
+export function readConfig(cwd: string): UiConfig {
 	try {
 		const configPath = path.join(cwd, CONFIG_DIR_NAME, CONFIG_FILE_NAME);
 		if (!fs.existsSync(configPath)) {
@@ -38,22 +38,36 @@ function readConfig(cwd: string): UiConfig {
 	}
 }
 
-function getAccountLabel(ctx: ExtensionContext): string {
-	const value = readConfig(ctx.cwd).accountLabel?.trim();
+export function resolveAccountLabel(
+	configLabel: string | undefined,
+	username: string | undefined,
+	envUser: string | undefined,
+	envUsername: string | undefined,
+): string {
+	const value = configLabel?.trim();
 	if (value && value !== "set-me") {
 		return value;
 	}
-
-	try {
-		const username = os.userInfo().username?.trim();
-		if (username) {
-			return username;
-		}
-	} catch {
-		// ignore
+	const trimmedUsername = username?.trim();
+	if (trimmedUsername) {
+		return trimmedUsername;
 	}
+	return envUser?.trim() || envUsername?.trim() || "local";
+}
 
-	return process.env.USER?.trim() || process.env.USERNAME?.trim() || "local";
+function getAccountLabel(ctx: ExtensionContext): string {
+	let username: string | undefined;
+	try {
+		username = os.userInfo().username;
+	} catch {
+		username = undefined;
+	}
+	return resolveAccountLabel(
+		readConfig(ctx.cwd).accountLabel,
+		username,
+		process.env.USER,
+		process.env.USERNAME,
+	);
 }
 
 function getModelLabel(ctx: ExtensionContext): string {
@@ -77,11 +91,16 @@ function getWorkingIndicator(ctx: ExtensionContext): WorkingIndicatorOptions {
 	};
 }
 
-function padPlain(text: string, width: number): string {
+export function padPlain(text: string, width: number): string {
 	return text + " ".repeat(Math.max(0, width - visibleWidth(text)));
 }
 
-function getLogoLines(theme: ExtensionContext["ui"]["theme"]): string[] {
+type ChromeTheme = {
+	fg: (color: ThemeColor, text: string) => string;
+	bold: (text: string) => string;
+};
+
+function getLogoLines(theme: ChromeTheme): string[] {
 	const on = "██";
 	const off = "  ";
 	const logo = (cells: number[]) =>
@@ -98,40 +117,80 @@ function getLogoLines(theme: ExtensionContext["ui"]["theme"]): string[] {
 	];
 }
 
+export function renderHeaderLines(
+	width: number,
+	theme: ChromeTheme,
+	input: {
+		cwd: string;
+		accountLabel: string;
+		modelLabel: string;
+		thinkingLevel: string;
+	},
+): string[] {
+	if (width < 48) {
+		const left = `${theme.fg("accent", theme.bold("Pi"))}`;
+		const right = `${theme.fg("dim", "cwd")} ${theme.fg("muted", path.basename(input.cwd))}`;
+		const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
+		return [truncateToWidth(left + pad + right, width)];
+	}
+
+	const innerWidth = width - 2;
+	const logoLines = getLogoLines(theme);
+	const logoWidth = 8;
+	const gap = 2;
+	const metaWidth = Math.max(12, innerWidth - logoWidth - gap * 2 - 1);
+	const metaLines = [
+		`${theme.fg("text", theme.bold("Pi"))}  ${theme.fg("dim", "model")} ${theme.fg("muted", input.modelLabel)}`,
+		`${theme.fg("dim", "acct")} ${theme.fg("muted", input.accountLabel)}  ${theme.fg("borderMuted", "·")}  ${theme.fg("dim", "think")} ${theme.fg("muted", input.thinkingLevel)}`,
+		`${theme.fg("dim", "cwd")} ${theme.fg("muted", path.basename(input.cwd))}`,
+		"",
+	];
+
+	const top = theme.fg("border", `┌${"─".repeat(innerWidth)}┐`);
+	const bottom = theme.fg("border", `└${"─".repeat(innerWidth)}┘`);
+	const rows = logoLines.map((logo, index) => {
+		const meta = truncateToWidth(metaLines[index] ?? "", metaWidth, "");
+		const content = `${logo}${" ".repeat(gap)}${theme.fg("borderMuted", "│")}${" ".repeat(gap)}${padPlain(meta, metaWidth)}`;
+		return `${theme.fg("border", "│")}${padPlain(content, innerWidth)}${theme.fg("border", "│")}`;
+	});
+
+	return [top, ...rows, bottom];
+}
+
+export function renderFooterLines(
+	width: number,
+	theme: ChromeTheme,
+	input: {
+		cwd: string;
+		modelLabel: string;
+		thinkingLevel: string;
+		branch: string;
+		usageLabel: string;
+	},
+): string[] {
+	const right = [
+		theme.fg("muted", input.modelLabel),
+		theme.fg("muted", input.thinkingLevel),
+		theme.fg("dim", input.branch),
+		theme.fg("dim", input.usageLabel),
+	].join(theme.fg("borderMuted", "  ·  "));
+	const left = theme.fg("dim", truncateToWidth(input.cwd, Math.max(1, width - visibleWidth(right) - 1)));
+	const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
+	return [truncateToWidth(left + pad + right, width), " ".repeat(width)];
+}
+
 function applyLayoutChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 	const accountLabel = getAccountLabel(ctx);
 
 	ctx.ui.setHeader((_tui, theme) => ({
 		invalidate() {},
 		render(width: number): string[] {
-			if (width < 48) {
-				const left = `${theme.fg("accent", theme.bold("Pi"))}`;
-				const right = `${theme.fg("dim", "cwd")} ${theme.fg("muted", path.basename(ctx.cwd))}`;
-				const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-				return [truncateToWidth(left + pad + right, width)];
-			}
-
-			const innerWidth = width - 2;
-			const logoLines = getLogoLines(theme);
-			const logoWidth = 8;
-			const gap = 2;
-			const metaWidth = Math.max(12, innerWidth - logoWidth - gap * 2 - 1);
-			const metaLines = [
-				`${theme.fg("text", theme.bold("Pi"))}  ${theme.fg("dim", "model")} ${theme.fg("muted", getModelLabel(ctx))}`,
-				`${theme.fg("dim", "acct")} ${theme.fg("muted", accountLabel)}  ${theme.fg("borderMuted", "·")}  ${theme.fg("dim", "think")} ${theme.fg("muted", pi.getThinkingLevel())}`,
-				`${theme.fg("dim", "cwd")} ${theme.fg("muted", path.basename(ctx.cwd))}`,
-				"",
-			];
-
-			const top = theme.fg("border", `┌${"─".repeat(innerWidth)}┐`);
-			const bottom = theme.fg("border", `└${"─".repeat(innerWidth)}┘`);
-			const rows = logoLines.map((logo, index) => {
-				const meta = truncateToWidth(metaLines[index] ?? "", metaWidth, "");
-				const content = `${logo}${" ".repeat(gap)}${theme.fg("borderMuted", "│")}${" ".repeat(gap)}${padPlain(meta, metaWidth)}`;
-				return `${theme.fg("border", "│")}${padPlain(content, innerWidth)}${theme.fg("border", "│")}`;
+			return renderHeaderLines(width, theme, {
+				cwd: ctx.cwd,
+				accountLabel,
+				modelLabel: getModelLabel(ctx),
+				thinkingLevel: pi.getThinkingLevel(),
 			});
-
-			return [top, ...rows, bottom];
 		},
 	}));
 
@@ -146,16 +205,13 @@ function applyLayoutChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 				usage?.percent != null && usage?.tokens != null
 					? `ctx ${Math.round(usage.percent)}% (${formatTokens(usage.tokens)})`
 					: "ctx --";
-			const model = getModelLabel(ctx);
-			const right = [
-				theme.fg("muted", model),
-				theme.fg("muted", pi.getThinkingLevel()),
-				theme.fg("dim", branch),
-				theme.fg("dim", usageLabel),
-			].join(theme.fg("borderMuted", "  ·  "));
-			const left = theme.fg("dim", truncateToWidth(ctx.cwd, Math.max(1, width - visibleWidth(right) - 1)));
-			const pad = " ".repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(right)));
-			return [truncateToWidth(left + pad + right, width), " ".repeat(width)];
+			return renderFooterLines(width, theme, {
+				cwd: ctx.cwd,
+				modelLabel: getModelLabel(ctx),
+				thinkingLevel: pi.getThinkingLevel(),
+				branch,
+				usageLabel,
+			});
 		},
 	}));
 
