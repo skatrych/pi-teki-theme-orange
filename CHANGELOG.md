@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Replace working-state wording with activity-aware, orange/gold shimmering whimsical messages that rotate every few seconds; set `whimsicalWorkingMessages` to `false` to restore the pragmatic wording.
 - Keep live working status and title animation when the model or thinking level changes mid-turn.
 - Show the full current work directory path on the left side of the footer instead of a duplicate activity status.
 

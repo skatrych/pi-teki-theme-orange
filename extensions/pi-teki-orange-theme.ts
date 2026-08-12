@@ -4,9 +4,11 @@ import path from "node:path";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext, ThemeColor, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { pickWhimsicalMessage, type WhimsicalMessageCategory } from "./whimsical-messages.ts";
 
-type UiConfig = {
+export type UiConfig = {
 	accountLabel?: string;
+	whimsicalWorkingMessages?: boolean;
 };
 
 const CONFIG_FILE_NAME = "pi-teki-orange-theme.json";
@@ -18,6 +20,17 @@ const TOOL_MESSAGES: Record<string, string> = {
 	edit: "Editing",
 	write: "Writing",
 };
+
+const TOOL_MESSAGE_CATEGORIES: Record<string, WhimsicalMessageCategory> = {
+	bash: "bash",
+	read: "read",
+	edit: "edit",
+	write: "write",
+};
+
+export function getWhimsicalMessageCategory(toolName: string): WhimsicalMessageCategory {
+	return TOOL_MESSAGE_CATEGORIES[toolName] ?? "other";
+}
 
 export function readConfig(cwd: string): UiConfig {
 	try {
@@ -31,8 +44,13 @@ export function readConfig(cwd: string): UiConfig {
 			return {};
 		}
 
-		const accountLabel = (parsed as Record<string, unknown>).accountLabel;
-		return typeof accountLabel === "string" ? { accountLabel } : {};
+		const config = parsed as Record<string, unknown>;
+		const accountLabel = config.accountLabel;
+		const whimsicalWorkingMessages = config.whimsicalWorkingMessages;
+		return {
+			...(typeof accountLabel === "string" ? { accountLabel } : {}),
+			...(typeof whimsicalWorkingMessages === "boolean" ? { whimsicalWorkingMessages } : {}),
+		};
 	} catch {
 		return {};
 	}
@@ -89,6 +107,44 @@ function getWorkingIndicator(ctx: ExtensionContext): WorkingIndicatorOptions {
 		}),
 		intervalMs: 80,
 	};
+}
+
+const SHIMMER_COLORS: ThemeColor[] = [
+	"accent",
+	"thinkingMedium",
+	"warning",
+	"thinkingHigh",
+	"mdCode",
+	"thinkingHigh",
+	"warning",
+	"thinkingMedium",
+];
+const WORKING_MESSAGE_CHANGE_INTERVAL_MS = 3_000;
+const WORKING_MESSAGE_OVERHEAD_WIDTH = 4;
+const ANSI_ESCAPE_SEQUENCE = /\x1B\[[0-?]*[ -/]*[@-~]/g;
+
+export function truncateWorkingMessage(message: string, terminalWidth = process.stdout.columns): string {
+	const availableWidth = Math.max(1, (terminalWidth ?? 80) - WORKING_MESSAGE_OVERHEAD_WIDTH);
+	return truncateToWidth(message, availableWidth, "…").replace(ANSI_ESCAPE_SEQUENCE, "");
+}
+
+export function renderShimmerMessage(
+	theme: Pick<ChromeTheme, "fg">,
+	message: string,
+	offset: number,
+): string {
+	const characters = Array.from(message);
+	const shimmerPosition = offset % (characters.length + SHIMMER_COLORS.length);
+	return characters
+		.map((character, index) => {
+			if (character === " ") {
+				return character;
+			}
+			const colorIndex =
+				((index - shimmerPosition) % SHIMMER_COLORS.length + SHIMMER_COLORS.length) % SHIMMER_COLORS.length;
+			return theme.fg(SHIMMER_COLORS[colorIndex]!, character);
+		})
+		.join("");
 }
 
 export function padPlain(text: string, width: number): string {
@@ -218,16 +274,27 @@ function applyLayoutChrome(pi: ExtensionAPI, ctx: ExtensionContext) {
 	ctx.ui.setWorkingIndicator(getWorkingIndicator(ctx));
 }
 
+export function areWhimsicalWorkingMessagesEnabled(config: UiConfig): boolean {
+	return config.whimsicalWorkingMessages !== false;
+}
+
+function useWhimsicalWorkingMessages(ctx: ExtensionContext): boolean {
+	return areWhimsicalWorkingMessagesEnabled(readConfig(ctx.cwd));
+}
+
 function applyIdleWorkingState(pi: ExtensionAPI, ctx: ExtensionContext) {
-	ctx.ui.setWorkingMessage("Thinking…");
+	const message = useWhimsicalWorkingMessages(ctx) ? pickWhimsicalMessage("thinking") : "Thinking…";
+	ctx.ui.setWorkingMessage(truncateWorkingMessage(message));
 	ctx.ui.setWorkingVisible(true);
 	ctx.ui.setTitle(getBaseTitle(pi, ctx));
 }
 
 export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | null = null;
+	let shimmerTimer: ReturnType<typeof setInterval> | null = null;
 	let frameIndex = 0;
 	const activeTools = new Map<string, string>();
+	const previousWhimsicalMessages = new Map<WhimsicalMessageCategory, string>();
 	let agentBusy = false;
 
 	const stopTitleAnimation = (ctx: ExtensionContext) => {
@@ -246,6 +313,37 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.setTitle(`${frame} ${getBaseTitle(pi, ctx)}`);
 			frameIndex++;
 		}, 80);
+	};
+
+	const stopWorkingMessageAnimation = () => {
+		if (shimmerTimer) {
+			clearInterval(shimmerTimer);
+			shimmerTimer = null;
+		}
+	};
+
+	const getNextWhimsicalMessage = (category: WhimsicalMessageCategory) => {
+		const message = pickWhimsicalMessage(category, previousWhimsicalMessages.get(category));
+		previousWhimsicalMessages.set(category, message);
+		return message;
+	};
+
+	const startWorkingMessageAnimation = (ctx: ExtensionContext, category: WhimsicalMessageCategory) => {
+		stopWorkingMessageAnimation();
+		let message = getNextWhimsicalMessage(category);
+		let shimmerOffset = 0;
+		let messageStartedAt = Date.now();
+		const update = () => {
+			if (Date.now() - messageStartedAt >= WORKING_MESSAGE_CHANGE_INTERVAL_MS) {
+				message = getNextWhimsicalMessage(category);
+				shimmerOffset = 0;
+				messageStartedAt = Date.now();
+			}
+			ctx.ui.setWorkingMessage(renderShimmerMessage(ctx.ui.theme, truncateWorkingMessage(message), shimmerOffset));
+			shimmerOffset++;
+		};
+		update();
+		shimmerTimer = setInterval(update, 110);
 	};
 
 	const refreshChrome = (ctx: ExtensionContext) => {
@@ -284,7 +382,11 @@ export default function (pi: ExtensionAPI) {
 		}
 		agentBusy = true;
 		activeTools.clear();
-		ctx.ui.setWorkingMessage("Thinking…");
+		if (useWhimsicalWorkingMessages(ctx)) {
+			startWorkingMessageAnimation(ctx, "thinking");
+		} else {
+			ctx.ui.setWorkingMessage("Thinking…");
+		}
 		startTitleAnimation(ctx);
 	});
 
@@ -292,9 +394,13 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.mode !== "tui") {
 			return;
 		}
+		activeTools.set(event.toolCallId, event.toolName);
+		if (useWhimsicalWorkingMessages(ctx)) {
+			startWorkingMessageAnimation(ctx, getWhimsicalMessageCategory(event.toolName));
+			return;
+		}
 		const message = TOOL_MESSAGES[event.toolName] ?? `Running ${event.toolName}`;
-		activeTools.set(event.toolCallId, message);
-		ctx.ui.setWorkingMessage(`${message}…`);
+		ctx.ui.setWorkingMessage(truncateWorkingMessage(`${message}…`));
 	});
 
 	pi.on("tool_execution_end", async (event, ctx) => {
@@ -302,13 +408,14 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		activeTools.delete(event.toolCallId);
-		const messages = Array.from(activeTools.values());
-		const message = messages[messages.length - 1];
-		if (message) {
-			ctx.ui.setWorkingMessage(`${message}…`);
-		} else {
-			ctx.ui.setWorkingMessage("Thinking…");
+		const toolNames = Array.from(activeTools.values());
+		const toolName = toolNames[toolNames.length - 1];
+		if (useWhimsicalWorkingMessages(ctx)) {
+			startWorkingMessageAnimation(ctx, toolName ? getWhimsicalMessageCategory(toolName) : "thinking");
+			return;
 		}
+		const message = toolName ? (TOOL_MESSAGES[toolName] ?? `Running ${toolName}`) : undefined;
+		ctx.ui.setWorkingMessage(truncateWorkingMessage(message ? `${message}…` : "Thinking…"));
 	});
 
 	pi.on("agent_settled", async (_event, ctx) => {
@@ -318,6 +425,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		stopTitleAnimation(ctx);
+		stopWorkingMessageAnimation();
 		applyLayoutChrome(pi, ctx);
 		applyIdleWorkingState(pi, ctx);
 	});
@@ -329,5 +437,6 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		stopTitleAnimation(ctx);
+		stopWorkingMessageAnimation();
 	});
 }

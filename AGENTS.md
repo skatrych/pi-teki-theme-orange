@@ -9,12 +9,8 @@
 - Keep chrome quiet, compact, and readable.
 - Use warm orange accents sparingly against dark neutral surfaces.
 - Prefer hierarchy and spacing over decorative separators.
-- Keep working feedback short and calm:
-  - `Thinking…`
-  - `Reading files…`
-  - `Running command…`
-  - `Editing…`
-  - `Writing…`
+- Keep working feedback short, activity-aware, and readable. Whimsical wording is the default, but it must clearly distinguish thinking, reading, running commands, editing, and writing.
+- Preserve the pragmatic `Thinking…`, `Reading files…`, `Running command…`, `Editing…`, and `Writing…` wording when `whimsicalWorkingMessages` is disabled.
 - Keep the compact header, model information in the footer, context percentage plus token count, and a blank line below the footer.
 
 ## Project layout

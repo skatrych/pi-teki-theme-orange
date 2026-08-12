@@ -1,6 +1,6 @@
 # pi-teki-orange-theme
 
-A quiet, dark Pi theme with warm orange accents, compact metadata, and calm working-state feedback.
+A quiet, dark Pi theme with warm orange accents, compact metadata, and activity-aware whimsical working-state feedback.
 
 ## Install
 
@@ -24,9 +24,16 @@ The extension works without configuration. To override the account label, create
 
 ```json
 {
-  "accountLabel": "work"
+  "accountLabel": "work",
+  "whimsicalWorkingMessages": true
 }
 ```
+
+Whimsical working messages are enabled by default. They keep Pi's current activity
+clear—thinking, reading, running commands, editing, or writing—while rotating through
+funny IT wording every few seconds and shimmering in orange/gold. Set
+`whimsicalWorkingMessages` to `false` to restore the pragmatic `Thinking…`,
+`Running command…`, and related messages.
 
 If no label is configured, the local operating-system username is used.
 
@@ -37,7 +44,7 @@ If no label is configured, the local operating-system username is used.
 - Model, reasoning level, branch, and context usage footer
 - Full current work directory path shown on the left side of the footer
 - Context usage shown as a percentage and token count
-- Calm working messages for thinking and tool execution
+- Shimmering whimsical working messages, with the original calm messages available as a toggle
 - Animated terminal title while Pi is working
 
 ## Compatibility
