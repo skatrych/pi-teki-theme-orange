@@ -7,7 +7,7 @@
 ## Design principles
 
 - Keep chrome quiet, compact, and readable.
-- Use warm orange accents sparingly against dark neutral surfaces.
+- Use warm orange accents sparingly against neutral surfaces, dark or light.
 - Prefer hierarchy and spacing over decorative separators.
 - Keep working feedback short, activity-aware, and readable. Whimsical wording is the default, but it must clearly distinguish thinking, reading, running commands, editing, and writing.
 - Preserve the pragmatic `Thinking…`, `Reading files…`, `Running command…`, `Editing…`, and `Writing…` wording when `whimsicalWorkingMessages` is disabled.
@@ -17,7 +17,8 @@
 
 - `package.json` — npm and Pi package metadata.
 - `extensions/pi-teki-orange-theme.ts` — header, footer, working state, and terminal title behavior.
-- `themes/pi-teki-orange-theme.json` — palette and Pi color tokens.
+- `themes/pi-teki-orange-theme.json` — dark palette and Pi color tokens.
+- `themes/pi-teki-orange-theme-light.json` — light palette, same tokens, different values.
 - `.pi/settings.json` — local development settings only.
 - `.pi/pi-teki-orange-theme.json` — optional project-local account label.
 - `test/` — package validation tests.
@@ -26,6 +27,8 @@
 ## Change rules
 
 - Keep the package name and theme name `pi-teki-orange-theme`.
+- Do not change the `pi-teki-orange-theme` name or its dark palette values; existing user selections depend on them.
+- Keep the two `themes/*.json` files exposing identical token names, and declare `appearance` on both. The extension colors chrome by token name, and Pi has no inheritance between theme files.
 - Keep published resources under `extensions/` and `themes/`.
 - Do not modify global Pi configuration.
 - Prefer small, targeted UI changes; preserve existing behavior unless intentionally changing the design.

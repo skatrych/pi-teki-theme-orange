@@ -25,13 +25,18 @@ import installThemeExtension, {
 const packageEntryPath = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
 const themeLoaderPath = path.join(path.dirname(packageEntryPath), "modes/interactive/theme/theme.js");
 const { loadThemeFromPath } = await import(pathToFileURL(themeLoaderPath).href);
-const themePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../themes/pi-teki-orange-theme.json");
-const ansiTheme = loadThemeFromPath(themePath, "truecolor");
+const themesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../themes");
+const ansiTheme = loadThemeFromPath(path.join(themesDir, "pi-teki-orange-theme.json"), "truecolor");
+const lightAnsiTheme = loadThemeFromPath(path.join(themesDir, "pi-teki-orange-theme-light.json"), "truecolor");
 
 const plainTheme = {
 	fg: (_color, text) => text,
 	bold: (text) => text,
 };
+
+// The extension styles the chrome with theme tokens only, so both shipped palettes
+// must produce identical geometry.
+const chromeThemes = [plainTheme, ansiTheme, lightAnsiTheme];
 
 const headerInput = {
 	cwd: "/tmp/demo-project",
@@ -232,7 +237,9 @@ test("truncateWorkingMessage keeps the loader to one line in narrow terminals", 
 	}
 	assert.equal(truncateWorkingMessage(message, 20), "Archeologically…");
 	assert.equal(truncateWorkingMessage("Thinking…", 20), "Thinking…");
-	assert.ok(visibleWidth(renderShimmerMessage(ansiTheme, truncateWorkingMessage(message, 20), 0)) <= 16);
+	for (const theme of [ansiTheme, lightAnsiTheme]) {
+		assert.ok(visibleWidth(renderShimmerMessage(theme, truncateWorkingMessage(message, 20), 0)) <= 16);
+	}
 });
 
 test("renderShimmerMessage preserves text while changing theme colors", () => {
@@ -251,7 +258,7 @@ test("renderShimmerMessage preserves text while changing theme colors", () => {
 });
 
 test("renderHeaderLines fits widths 20, 47, 48, 80, 200", () => {
-	for (const theme of [plainTheme, ansiTheme]) {
+	for (const theme of chromeThemes) {
 		for (const width of WIDTHS) {
 			const lines = renderHeaderLines(width, theme, headerInput);
 			const expectLineCount = width < 48 ? 1 : 6;
@@ -263,7 +270,7 @@ test("renderHeaderLines fits widths 20, 47, 48, 80, 200", () => {
 });
 
 test("renderFooterLines fits widths 20, 47, 48, 80, 200", () => {
-	for (const theme of [plainTheme, ansiTheme]) {
+	for (const theme of chromeThemes) {
 		for (const width of WIDTHS) {
 			const lines = renderFooterLines(width, theme, footerInput);
 			assert.equal(lines.length, 2);

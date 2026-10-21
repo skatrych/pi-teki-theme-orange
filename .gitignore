@@ -2,5 +2,6 @@ node_modules/
 coverage/
 .DS_Store
 *.tgz
+theme-preview.html
 .pi/settings.json
 

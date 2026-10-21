@@ -1,6 +1,7 @@
 {
   "$schema": "https://pi.dev/schemas/theme.schema.json",
   "name": "pi-teki-orange-theme",
+  "appearance": "dark",
   "vars": {
     "accentSoft": "#d9a066",
     "accent": "#c8843a",

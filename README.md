@@ -1,6 +1,7 @@
 # pi-teki-orange-theme
 
-A quiet, dark Pi theme with warm orange accents, compact metadata, and activity-aware whimsical working-state feedback.
+A quiet Pi theme with warm orange accents, compact metadata, and activity-aware whimsical
+working-state feedback. Ships matching dark and light palettes.
 
 ## Install
 
@@ -16,7 +17,38 @@ Or install for the current project:
 pi install -l npm:@teki/pi-teki-orange-theme
 ```
 
-After installation, select `pi-teki-orange-theme` from Pi's `/settings` menu. Use `pi config` to enable or disable the package resources.
+After installation, select a theme from Pi's `/settings` menu. Use `pi config` to enable or
+disable the package resources.
+
+## Theme
+
+The package ships two palettes, each a separate theme:
+
+| Theme name | Designed for |
+| --- | --- |
+| `pi-teki-orange-theme` | dark terminals |
+| `pi-teki-orange-theme-light` | light terminals |
+
+Select one of them, or select both as a pair to follow your terminal's light/dark
+appearance automatically. Pi stores a pair light-first:
+
+```json
+{
+  "theme": "pi-teki-orange-theme-light/pi-teki-orange-theme"
+}
+```
+
+A single selection is stored as either theme name:
+
+```json
+{
+  "theme": "pi-teki-orange-theme"
+}
+```
+
+Pi has no inheritance between theme files, so both files intentionally repeat the same 51
+color tokens with different values. Change a token in both files or neither; a test fails if
+the two token sets drift, because the extension colors its chrome by token name.
 
 ## Configuration
 
@@ -39,7 +71,8 @@ If no label is configured, the local operating-system username is used.
 
 ## Included
 
-- Dark neutral palette with restrained orange accents
+- Dark and light neutral palettes with restrained orange accents
+- Light palette on a warm paper base, holding WCAG AA (≥4.5:1) for text on every surface
 - Compact responsive header
 - Model, reasoning level, branch, and context usage footer
 - Full current work directory path shown on the left side of the footer
