@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 - 2026-10-21
+
+- Align with Pi 1.3.0: point the theme `$schema` at the published `https://pi.dev/schemas/theme.schema.json` used by Pi's startup theme validation, and develop against `@earendil-works/pi-coding-agent`/`pi-tui` 1.3.0.
 
 - Replace working-state wording with activity-aware, orange/gold shimmering whimsical messages that rotate every few seconds; set `whimsicalWorkingMessages` to `false` to restore the pragmatic wording.
 - Keep live working status and title animation when the model or thinking level changes mid-turn.
