@@ -4,6 +4,7 @@ import path from "node:path";
 import { CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext, ThemeColor, WorkingIndicatorOptions } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { RoundedInputEditor } from "./input-editor.ts";
 import { pickWhimsicalMessage, type WhimsicalMessageCategory } from "./whimsical-messages.ts";
 
 export type UiConfig = {
@@ -358,6 +359,15 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		agentBusy = false;
+		ctx.ui.setEditorComponent((tui, editorTheme, keybindings) =>
+			new RoundedInputEditor(
+				tui,
+				editorTheme,
+				keybindings,
+				(text) => ctx.ui.theme.fg("accent", text),
+				(text) => ctx.ui.theme.fg("dim", text),
+			),
+		);
 		applyLayoutChrome(pi, ctx);
 		applyIdleWorkingState(pi, ctx);
 	});

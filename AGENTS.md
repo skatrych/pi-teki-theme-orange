@@ -12,11 +12,13 @@
 - Keep working feedback short, activity-aware, and readable. Whimsical wording is the default, but it must clearly distinguish thinking, reading, running commands, editing, and writing.
 - Preserve the pragmatic `Thinking…`, `Reading files…`, `Running command…`, `Editing…`, and `Writing…` wording when `whimsicalWorkingMessages` is disabled.
 - Keep the compact header, model information in the footer, context percentage plus token count, and a blank line below the footer.
+- Frame the message input as a rounded rectangle with a persistent `❯❯` prompt. The prompt stays visible while typing and is not part of the submitted text. An empty input shows a dim `Write your message here...` placeholder that disappears when typing starts.
 
 ## Project layout
 
 - `package.json` — npm and Pi package metadata.
 - `extensions/pi-teki-orange-theme.ts` — header, footer, working state, and terminal title behavior.
+- `extensions/input-editor.ts` — rounded message input and persistent `❯❯` prompt.
 - `themes/pi-teki-orange-theme.json` — dark palette and Pi color tokens.
 - `themes/pi-teki-orange-theme-light.json` — light palette, same tokens, different values.
 - `.pi/settings.json` — local development settings only.

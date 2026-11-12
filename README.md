@@ -78,6 +78,8 @@ If no label is configured, the local operating-system username is used.
 - Full current work directory path shown on the left side of the footer
 - Context usage shown as a percentage and token count
 - Shimmering whimsical working messages, with the original calm messages available as a toggle
+- Rounded message input with a persistent `❯❯` prompt that stays visible while typing
+- Dim `Write your message here...` placeholder while the input is empty
 - Animated terminal title while Pi is working
 
 ## Compatibility

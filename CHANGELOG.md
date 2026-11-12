@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Draw the message input as a rounded rectangle and keep an accent-colored `❯❯` prompt inside it while typing. The prompt is chrome and is not included in the submitted message.
+- Show a dim `Write your message here...` placeholder in the empty message input. It disappears as soon as typing starts and is not submitted.
 - Added `pi-teki-orange-theme-light`, a light companion palette on a warm paper base, so the theme supports light terminals. Select both as a pair to follow the terminal's appearance: `{"theme": "pi-teki-orange-theme-light/pi-teki-orange-theme"}`.
 - Declared `appearance` explicitly on both theme files. Pi's fallback for terminal-default colors is keyed on appearance, so relying on detection from the palette was fragile once a second palette existed.
 - Kept the `pi-teki-orange-theme` name and its dark palette unchanged, so existing user selections keep working. Note the one intentional divergence: the light theme sets an explicit primary text color, while the dark theme continues to defer to the terminal default foreground.
