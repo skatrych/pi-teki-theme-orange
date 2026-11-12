@@ -15,7 +15,6 @@ const PROMPT = "❯❯ ";
 const PLACEHOLDER = "Write your message here...";
 
 type InputFrame = {
-	boxed: boolean;
 	contentWidth: number;
 	leftBorder: string;
 	leftPad: string;
@@ -23,6 +22,13 @@ type InputFrame = {
 	continuation: string;
 	rightPad: string;
 	rightBorder: string;
+};
+
+export type RoundedInputEditorOptions = {
+	accent: (text: string) => string;
+	dim: (text: string) => string;
+	/** Draw Pi's working status on the top border. Defaults to true. */
+	embedWorkingStatus?: boolean;
 };
 
 type EditorMetrics = {
@@ -55,7 +61,7 @@ function chromeWidth(frame: Pick<InputFrame, "leftBorder" | "leftPad" | "prefix"
 
 // Full frame is `│ ❯❯ text │`. Narrow terminals drop the inner padding, then the
 // space after the prompt, before falling back to the plain editor.
-function fitInputFrame(width: number): InputFrame {
+function fitInputFrame(width: number): InputFrame | null {
 	const layouts = [
 		{ leftBorder: "│", leftPad: " ", prefix: PROMPT, rightPad: " ", rightBorder: "│" },
 		{ leftBorder: "│", leftPad: "", prefix: PROMPT, rightPad: "", rightBorder: "│" },
@@ -65,23 +71,13 @@ function fitInputFrame(width: number): InputFrame {
 		const chrome = chromeWidth(layout);
 		if (width - chrome >= 1) {
 			return {
-				boxed: true,
 				contentWidth: width - chrome,
 				continuation: " ".repeat(visibleWidth(layout.prefix)),
 				...layout,
 			};
 		}
 	}
-	return {
-		boxed: false,
-		contentWidth: Math.max(1, width),
-		leftBorder: "",
-		leftPad: "",
-		prefix: "",
-		continuation: "",
-		rightPad: "",
-		rightBorder: "",
-	};
+	return null;
 }
 
 function paintPrompt(prefix: string, accent: (text: string) => string): string {
@@ -97,10 +93,7 @@ function roundedBorder(
 ): string {
 	const left = kind === "top" ? "╭" : "╰";
 	const right = kind === "top" ? "╮" : "╯";
-	if (width <= 1) {
-		return color(left);
-	}
-	return color(left) + fitToWidth(inner, width - 2) + color(right);
+	return color(left) + fitToWidth(inner, Math.max(0, width - 2)) + color(right);
 }
 
 function frameContentLine(
@@ -121,14 +114,13 @@ function frameContentLine(
 	);
 }
 
-function frameAutocompleteLine(content: string, frame: InputFrame, width: number): string {
-	const indent =
-		visibleWidth(frame.leftBorder) + visibleWidth(frame.leftPad) + visibleWidth(frame.prefix);
-	return fitToWidth(" ".repeat(indent) + fitToWidth(content, frame.contentWidth), width);
-}
-
 function contentIndent(frame: InputFrame): number {
 	return visibleWidth(frame.leftBorder) + visibleWidth(frame.leftPad) + visibleWidth(frame.prefix);
+}
+
+function frameAutocompleteLine(content: string, frame: InputFrame, width: number): string {
+	const indent = contentIndent(frame);
+	return fitToWidth(" ".repeat(indent) + fitToWidth(content, frame.contentWidth), width);
 }
 
 function emptyPlaceholder(contentWidth: number, focused: boolean, dim: (text: string) => string): string {
@@ -148,60 +140,75 @@ function emptyPlaceholder(contentWidth: number, focused: boolean, dim: (text: st
 export class RoundedInputEditor extends CustomEditor {
 	private hiddenAbove = 0;
 	private hiddenBelow = 0;
+	private deferBorders = false;
 	private readonly accent: (text: string) => string;
 	private readonly dim: (text: string) => string;
 
-	constructor(
-		tui: TUI,
-		theme: EditorTheme,
-		keybindings: KeybindingsManager,
-		accent: (text: string) => string,
-		dim: (text: string) => string,
-	) {
-		super(tui, theme, keybindings, { embedWorkingStatus: true });
-		this.accent = accent;
-		this.dim = dim;
+	constructor(tui: TUI, theme: EditorTheme, keybindings: KeybindingsManager, options: RoundedInputEditorOptions) {
+		super(tui, theme, keybindings, { embedWorkingStatus: options.embedWorkingStatus ?? true });
+		this.accent = options.accent;
+		this.dim = options.dim;
 	}
 
+	// super.render() calls these to record how many lines are scrolled off.
+	// Those strings are discarded; the visible borders are drawn once afterward
+	// at the full terminal width, so this pass skips the status layout.
 	protected override renderTopBorder(width: number, hiddenLineCount: number): string {
 		this.hiddenAbove = hiddenLineCount;
+		if (this.deferBorders) {
+			return "";
+		}
 		return super.renderTopBorder(width, hiddenLineCount);
 	}
 
 	protected override renderBottomBorder(width: number, hiddenLineCount: number): string {
 		this.hiddenBelow = hiddenLineCount;
+		if (this.deferBorders) {
+			return "";
+		}
 		return super.renderBottomBorder(width, hiddenLineCount);
 	}
 
 	override render(width: number): string[] {
 		const frame = fitInputFrame(width);
-		if (!frame.boxed) {
+		if (!frame) {
 			return super.render(width);
 		}
 
-		const source = super.render(frame.contentWidth);
+		// Pi's Editor.render order is private: top border, then
+		// renderedVisibleLineCount content rows, then the bottom border, then
+		// autocomplete. The count is a private field. A future Pi that moves
+		// either one gets the stock editor instead of a broken box.
+		this.deferBorders = true;
+		let source: string[];
+		try {
+			source = super.render(frame.contentWidth);
+		} finally {
+			this.deferBorders = false;
+		}
 		const contentCount = (this as unknown as EditorMetrics).renderedVisibleLineCount;
 		const bottomIndex = contentCount + 1;
+		if (!Number.isInteger(contentCount) || contentCount < 1 || bottomIndex >= source.length) {
+			return super.render(width);
+		}
 		const color = (text: string) => this.borderColor(text);
 		const innerWidth = Math.max(0, width - 2);
 		const showPlaceholder = this.getText().length === 0;
 		const lines = source.slice();
 		lines[0] = roundedBorder("top", super.renderTopBorder(innerWidth, this.hiddenAbove), width, color);
-		for (let index = 1; index <= contentCount && index < lines.length; index++) {
+		for (let index = 1; index <= contentCount; index++) {
 			const content =
 				showPlaceholder && index === 1
 					? emptyPlaceholder(frame.contentWidth, this.focused, this.dim)
 					: (lines[index] ?? "");
 			lines[index] = frameContentLine(content, frame, index === 1, this.accent, color);
 		}
-		if (bottomIndex < lines.length) {
-			lines[bottomIndex] = roundedBorder(
-				"bottom",
-				super.renderBottomBorder(innerWidth, this.hiddenBelow),
-				width,
-				color,
-			);
-		}
+		lines[bottomIndex] = roundedBorder(
+			"bottom",
+			super.renderBottomBorder(innerWidth, this.hiddenBelow),
+			width,
+			color,
+		);
 		for (let index = bottomIndex + 1; index < lines.length; index++) {
 			lines[index] = frameAutocompleteLine(lines[index] ?? "", frame, width);
 		}
@@ -210,7 +217,7 @@ export class RoundedInputEditor extends CustomEditor {
 
 	override handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
 		const frame = fitInputFrame(event.width);
-		if (!frame.boxed) {
+		if (!frame) {
 			return super.handleMouse(event);
 		}
 		return super.handleMouse({

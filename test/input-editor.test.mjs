@@ -27,13 +27,7 @@ function strip(text) {
 
 function createEditor({ accent = (text) => text, dim = (text) => text, border = (text) => text, rows = 24 } = {}) {
 	const tui = { terminal: { rows }, requestRender() {} };
-	return new RoundedInputEditor(
-		tui,
-		{ borderColor: border, selectList },
-		{ matches: () => false },
-		accent,
-		dim,
-	);
+	return new RoundedInputEditor(tui, { borderColor: border, selectList }, { matches: () => false }, { accent, dim });
 }
 
 function assertExactWidth(lines, width) {
@@ -196,11 +190,16 @@ test("colored borders and the accent prompt stay within the terminal width", () 
 
 test("working status and scroll hints stay on the rounded border", () => {
 	const editor = createEditor({ rows: 10 });
+	let statusRenders = 0;
 	editor.setWorkingStatusIndicator({
-		renderInBorder: () => "STATUS",
+		renderInBorder: () => {
+			statusRenders += 1;
+			return "STATUS";
+		},
 		renderSpinnerInBorder: () => "S",
 	});
 	const withStatus = editor.render(40).map(strip);
+	assert.equal(statusRenders, 1);
 	assert.match(withStatus[0], /^╭.*STATUS.*╮$/);
 	assert.match(withStatus[1], /^│ ❯❯ /);
 	assertExactWidth(withStatus, 40);
@@ -212,6 +211,87 @@ test("working status and scroll hints stay on the rounded border", () => {
 	assert.match(plain[0], /^╭.*↑.*more.*╮$/);
 	assert.match(plain[1], /^│ ❯❯ /);
 	assert.equal(plain.at(-1).startsWith("╰") && plain.at(-1).endsWith("╯"), true);
+});
+
+test("an unfocused empty input shows the placeholder without a hardware cursor", () => {
+	const editor = createEditor();
+	assert.equal(editor.focused, false);
+	const line = editor.render(40)[1];
+	assert.equal(line.includes("\x1b_pi:c\x07"), false);
+	assert.match(strip(line), /❯❯ Write your message here\.\.\./);
+});
+
+test("wide characters stay inside the box", () => {
+	const editor = createEditor();
+	editor.setText("Ａ🙂");
+	const lines = editor.render(40);
+	assertExactWidth(lines, 40);
+	assert.match(strip(lines[1]), /^│ ❯❯ Ａ🙂/);
+	assert.equal(editor.getText(), "Ａ🙂");
+});
+
+test("Pi's private visible-line count still marks the content between the borders", () => {
+	const editor = createEditor();
+	editor.setText("one\ntwo");
+	const lines = editor.render(80);
+	const contentCount = editor.renderedVisibleLineCount;
+	assert.equal(Number.isInteger(contentCount), true);
+	assert.ok(contentCount >= 1);
+	assert.ok(lines.length >= contentCount + 2);
+	const plain = lines.map(strip);
+	assert.match(plain[0], /^╭/);
+	for (let index = 1; index <= contentCount; index++) {
+		assert.match(plain[index], /^│/);
+	}
+	assert.match(plain[contentCount + 1], /^╰/);
+});
+
+test("autocomplete sits below the closed box and clicks select a row", async () => {
+	const editor = createEditor();
+	editor.setAutocompleteProvider({
+		getSuggestions: async () => ({
+			items: [
+				{ value: "alpha", label: "alpha" },
+				{ value: "beta", label: "beta" },
+			],
+			prefix: "",
+		}),
+		applyCompletion: (_lines, _cursorLine, _cursorCol, item) => ({
+			lines: [item.value],
+			cursorLine: 0,
+			cursorCol: item.value.length,
+		}),
+	});
+	editor.handleInput("/");
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(editor.isShowingAutocomplete(), true);
+
+	const width = 40;
+	const lines = editor.render(width);
+	const contentCount = editor.renderedVisibleLineCount;
+	const plain = lines.map(strip);
+	assertExactWidth(lines, width);
+	assert.match(plain[0], /^╭/);
+	assert.match(plain[contentCount], /^│/);
+	assert.match(plain[contentCount + 1], /^╰/);
+	assert.match(plain[contentCount + 2], /^ {5}→ alpha/);
+	assert.match(plain[contentCount + 3], /^ {5} {2}beta/);
+
+	editor.handleMouse({
+		type: "click",
+		button: "left",
+		x: visibleWidth("│ ❯❯ ") + 2,
+		y: contentCount + 3,
+		screenX: 0,
+		screenY: contentCount + 3,
+		width,
+		height: lines.length,
+		shift: false,
+		alt: false,
+		ctrl: false,
+	});
+	assert.equal(editor.getText(), "beta");
+	assert.equal(editor.isShowingAutocomplete(), false);
 });
 
 test("session start installs the rounded input editor", async () => {

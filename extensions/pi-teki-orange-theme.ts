@@ -360,13 +360,10 @@ export default function (pi: ExtensionAPI) {
 		}
 		agentBusy = false;
 		ctx.ui.setEditorComponent((tui, editorTheme, keybindings) =>
-			new RoundedInputEditor(
-				tui,
-				editorTheme,
-				keybindings,
-				(text) => ctx.ui.theme.fg("accent", text),
-				(text) => ctx.ui.theme.fg("dim", text),
-			),
+			new RoundedInputEditor(tui, editorTheme, keybindings, {
+				accent: (text) => ctx.ui.theme.fg("accent", text),
+				dim: (text) => ctx.ui.theme.fg("dim", text),
+			}),
 		);
 		applyLayoutChrome(pi, ctx);
 		applyIdleWorkingState(pi, ctx);
